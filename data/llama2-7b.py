@@ -54,5 +54,5 @@ for sentence in tqdm(df_speech_filtered_concat['Text']):
         fwd_hooks=[(mlp_activation_filter, store_function)],
     )
     res = torch.stack(tmp)
-    torch.save(res, ACTIVATIONS_CACHE_DIR+f'/{index}.pt')
+    torch.save(res.cpu(), ACTIVATIONS_CACHE_DIR+f'/{index}.pt')
     index += 1
