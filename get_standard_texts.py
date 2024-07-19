@@ -218,3 +218,32 @@ for sentence in tqdm(df['Response']):
     res = torch.stack(tmp)
     torch.save(res.cpu(), ACTIVATIONS_CACHE_DIR+f'/{index}.pt')
     index += 1
+
+
+
+
+
+
+
+import os
+import torch
+
+# Path to the directory containing the saved tensor files
+ACTIVATIONS_CACHE_DIR = "/home/atuin/b207dd/b207dd11/test/DEU/standard_sentences/llama3-8b"
+
+# Function to load embeddings from a tensor file
+def load_embedding(index):
+    file_path = os.path.join(ACTIVATIONS_CACHE_DIR, f'{index}.pt')
+    return torch.load(file_path)
+
+# Load all embeddings and add them to the DataFrame
+embeddings = []
+for index in tqdm(range(len(df))):
+    embeddings.append(load_embedding(index).numpy())
+
+df['Embedding'] = embeddings
+
+# Save the updated DataFrame with embeddings to a new pickle file
+df.to_pickle("/home/hpc/b207dd/b207dd11/test/spin-politics/standard_text_with_embeddings.pkl")
+
+import ace_tools as tools; tools.display_dataframe_to_user(name="Responses with Embeddings", dataframe=df)

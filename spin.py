@@ -36,6 +36,8 @@ warnings.filterwarnings("ignore", category=ConvergenceWarning)
 
 
 
+
+
 TRANSFORMERS_CACHE_DIR = "/home/atuin/b207dd/b207dd11/cache/huggingface/transformers"
 
 
@@ -46,7 +48,7 @@ res = []
 index = 0
 ACTIVATIONS_CACHE_DIR = "/home/atuin/b207dd/b207dd11/test/DEU/activations/llama3-8b"
 for sentence in tqdm(df_speech_filtered_concat['Text']):
-    res.append(torch.load(ACTIVATIONS_CACHE_DIR+f'/{index}.pt'))
+    res.append(torch.load(ACTIVATIONS_CACHE_DIR+f'/{index}.pt', map_location=torch.device('cpu')))
     index += 1
 
 res = torch.stack(res)[:10000]
