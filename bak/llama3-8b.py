@@ -14,8 +14,6 @@ import plotly.graph_objs as go
 
 import torch
 
-TRANSFORMERS_CACHE_DIR = "/home/atuin/b207dd/b207dd11/cache/huggingface/transformers"
-
 
 '''
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B", 
