@@ -1,4 +1,5 @@
 
+import os
 import torch
 from typing import List, Callable, Optional
 from collections import Counter
@@ -15,11 +16,20 @@ from transformer_lens import HookedTransformer
 from transformers import AutoTokenizer, AutoModel
 
 
+from utils import process_activations, load_activations
+
+
 
 '''
-tokenizer = AutoTokenizer.from_pretrained("meta-llama/Meta-Llama-3-8B", 
+MODEL_NAME="mistralai/Mistral-7B-v0.3"
+MODEL_NAME="meta-llama/Llama-2-7b-hf"
+MODEL_NAME="meta-llama/Meta-Llama-3-8B"
+MODEL_NAME="meta-llama/Llama-3.1-8B"
+MODEL_NAME="meta-llama/Llama-3.2-3B"
+MODEL_NAME="meta-llama/Llama-3.2-1B"
+tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME,
     token='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')
-llama3_model = AutoModel.from_pretrained("meta-llama/Meta-Llama-3-8B", 
+llama3_model = AutoModel.from_pretrained(MODEL_NAME,
     #device_map='cpu',
     token='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')
 '''
@@ -46,7 +56,7 @@ df = pd.concat(dfs, ignore_index=True)
 
 
 
-
+'''
 # Calculate sentence lengths
 df['sentence_length'] = df['sentence'].str.len()
 
@@ -78,18 +88,24 @@ plt.savefig('sentence_length_distribution.png', dpi=300, bbox_inches='tight')
 
 # Close the plot to free up memory
 plt.close()
+'''
 
 
 
 
-
-
-from utils import process_activations, load_activations
-
-
-ACTIVATIONS_CACHE_DIR='data/cache/ParlaSent'
+MODEL_NAME="mistralai/Mistral-7B-v0.3"
+MODEL_NAME="meta-llama/Llama-2-7b-hf"
 MODEL_NAME="meta-llama/Meta-Llama-3-8B"
-# Process the activations
+MODEL_NAME="meta-llama/Llama-3.1-8B"
+MODEL_NAME="meta-llama/Llama-3.2-1B"
+MODEL_NAME="meta-llama/Llama-3.2-3B"
+
+ACTIVATIONS_CACHE_DIR=f"data/cache/ParlaSent/{MODEL_NAME.split('/')[-1]}"
+if not os.path.exists(ACTIVATIONS_CACHE_DIR):
+      os.makedirs(ACTIVATIONS_CACHE_DIR)
+
+
+'''
 process_activations(
     sentences=df['sentence'].tolist(),
     model_name=MODEL_NAME,
@@ -98,6 +114,21 @@ process_activations(
     device="cuda" if torch.cuda.is_available() else "cpu",
     batch_size=1
 )
+'''
 
 # Later, when you want to load the activations:
-all_activations = load_activations(ACTIVATIONS_CACHE_DIR, len(df_speech_filtered_concat))
+all_activations = load_activations(ACTIVATIONS_CACHE_DIR, len(df['sentence']))
+# Ensure all_activations is a numpy array
+if isinstance(all_activations, torch.Tensor):
+    all_activations = all_activations.cpu().numpy()
+
+
+# Check if the number of activations matches the number of sentences
+assert len(all_activations) == len(df), "Number of activations does not match number of sentences in DataFrame"
+
+
+# Add the embeddings as a new column in the DataFrame
+df['embedding'] = list(all_activations)
+
+
+
