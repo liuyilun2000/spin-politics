@@ -99,6 +99,7 @@ MODEL_NAME="meta-llama/Meta-Llama-3-8B"
 MODEL_NAME="meta-llama/Llama-3.1-8B"
 MODEL_NAME="meta-llama/Llama-3.2-1B"
 MODEL_NAME="meta-llama/Llama-3.2-3B"
+MODEL_NAME="meta-llama/Meta-Llama-3-8B"
 
 ACTIVATIONS_CACHE_DIR=f"data/cache/ParlaSent/{MODEL_NAME.split('/')[-1]}"
 if not os.path.exists(ACTIVATIONS_CACHE_DIR):

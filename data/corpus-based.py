@@ -2,11 +2,16 @@ import numpy as np
 import pandas as pd
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
 from sklearn.preprocessing import LabelEncoder
-import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy import stats
 from typing import Dict, List, Tuple, Union, Optional
 
+
+import matplotlib.pyplot as plt
+import plotly.express as px
+import plotly.io as pio
+
+pio.templates.default = "plotly_white"
 
 
 class PoliticalSpeechAnalyzer:
@@ -68,7 +73,7 @@ class PoliticalSpeechAnalyzer:
             }
         
         return stats
-
+        
     def print_dataset_statistics(self):
         """
         Print a formatted summary of the dataset statistics with aligned columns.
@@ -172,7 +177,8 @@ class PoliticalSpeechAnalyzer:
     def perform_lda(self, 
                     n_components: int = 3, 
                     min_speeches_per_party: int = 100,
-                    layers: Optional[Union[int, List[int], str]] = None
+                    layers: Optional[Union[int, List[int], str]] = None,
+                    random_seed: int = 42
                     ) -> Tuple[LinearDiscriminantAnalysis, np.ndarray]:
         """
         Perform LDA on the embeddings.
@@ -180,16 +186,15 @@ class PoliticalSpeechAnalyzer:
         Args:
             n_components: Number of LDA components to extract
             min_speeches_per_party: Minimum speeches required for a party
-            layers: Which layers to use. Can be:
-                   - int: Single layer index
-                   - List[int]: List of layer indices
-                   - "all": Use all layers (default)
-                   - "last": Use only the last layer
-                   - "mean": Take mean across all layers
+            layers: Which layers to use
+            random_seed: Seed for numpy's random number generator
             
         Returns:
             Tuple of (fitted LDA model, transformed embeddings)
         """
+        # Set random seed
+        np.random.seed(random_seed)
+        
         X, y = self.prepare_embeddings_for_lda(min_speeches_per_party, layers)
         
         # Flatten embeddings if they're 3D (in case of multiple layers)
@@ -204,15 +209,11 @@ class PoliticalSpeechAnalyzer:
         
         return lda, X_lda
         
-    def plot_lda_results_2d(self, X_lda: np.ndarray, layer: Optional[int] = None, save_path: str = None, n_std: float = 3.0):
+    def plot_lda_results_2d(self, X_lda: np.ndarray, layer: Optional[int] = None, 
+                            save_path: str = None, n_std: float = 3.0, 
+                            party_colors: Optional[Dict[str, str]] = None):
         """
-        Plot the LDA results in 2D scatter plot format with outlier handling.
-        
-        Args:
-            X_lda: Transformed embeddings from LDA (n_samples, 2)
-            layer: Layer number for title (optional)
-            save_path: Optional path to save the plot
-            n_std: Number of standard deviations for outlier removal (default: 3.0)
+        Plot the LDA results in 2D using plotly express with unified scatter plot.
         """
         if X_lda.shape[1] != 2:
             raise ValueError("This plotting function requires exactly 2 LDA components")
@@ -224,102 +225,173 @@ class PoliticalSpeechAnalyzer:
         X_plot = X_lda.copy()
         
         # Calculate z-scores for both dimensions
-        z_scores = np.abs(stats.zscore(X_plot))
+        #z_scores = np.abs(stats.zscore(X_plot))
         
         # Create mask for non-outlier points
-        mask = (z_scores < n_std).all(axis=1)
+        #mask = (z_scores < n_std).all(axis=1)
         
         # Apply mask to both the LDA coordinates and the filtered DataFrame
-        X_plot = X_plot[mask]
-        plot_df = self.filtered_df[mask].copy()
+        #X_plot = X_plot[mask]
+        #plot_df = self.filtered_df[mask].copy()
+        plot_df = self.filtered_df.copy()
+        
+        # Normalize the coordinates to center 0 and range ±1
+        # First center to 0
+        X_mean = X_plot.mean(axis=0)
+        X_std = X_plot.std(axis=0)
+        
+        # Center the data
+        X_plot = X_plot - X_mean
+        
+        # Scale the data so that n_std standard deviations = ±1
+        X_plot = X_plot / (n_std * X_std)
         
         # Print outlier statistics
-        total_points = len(mask)
-        outliers = np.sum(~mask)
-        print(f"Removed {outliers} outliers out of {total_points} points ({(outliers/total_points)*100:.2f}%)")
-            
-        # Create figure
-        plt.figure(figsize=(12, 8))
+        #total_points = len(mask)
+        #outliers = np.sum(~mask)
+        #print(f"Removed {outliers} outliers out of {total_points} points ({(outliers/total_points)*100:.2f}%)")
         
-        # Get unique parties from filtered data
-        unique_parties = plot_df['party'].unique()
-        colors = plt.cm.rainbow(np.linspace(0, 1, len(unique_parties)))
+        # Create plot data for individual speeches
+        speech_data = []
+        name_data = []
+        party_data = []
         
-        # Create scatter plot for each party
-        for i, party in enumerate(unique_parties):
+        # First process each party
+        for party in plot_df['party'].unique():
             party_mask = plot_df['party'] == party
-            plt.scatter(
-                X_plot[party_mask, 0],
-                X_plot[party_mask, 1],
-                label=party,
-                color=colors[i],
-                alpha=0.6,
-                s=100  # Point size
-            )
+            party_points = X_plot[party_mask]
+            party_count = np.sum(party_mask)
+            party_center = np.mean(party_points, axis=0)
+            
+            # Then process each name within the party
+            for name in plot_df[party_mask]['name'].unique():
+                name_mask = plot_df['name'] == name
+                name_points = X_plot[name_mask]
+                name_count = np.sum(name_mask)
+                name_center = np.mean(name_points, axis=0)
+                
+                # Add name center point
+                name_data.append({
+                    'LDA1': name_center[0],
+                    'LDA2': name_center[1],
+                    'Party': party,
+                    'Category': 'Speaker',
+                    'size': name_count * 10,
+                })
+            
+            # Add party center
+            party_data.append({
+                'LDA1': party_center[0],
+                'LDA2': party_center[1],
+                'Party': party,
+                'Category': 'Party',
+                'size': party_count * 15,
+            })
         
-        # Add labels and title
-        plt.xlabel('First Linear Discriminant')
-        plt.ylabel('Second Linear Discriminant')
-        title = 'Political Party Classification (LDA)'
-        if layer is not None:
-            title += f' - Layer {layer}'
-        plt.title(title)
+        # Combine all data
+        plot_data = pd.DataFrame(party_data + name_data)
         
-        # Add legend
-        plt.legend(bbox_to_anchor=(1.05, 1), loc='upper left')
+        # Create plot using plotly express
+        fig = px.scatter(
+            plot_data, 
+            x='LDA1', 
+            y='LDA2',
+            color='Party',
+            symbol='Category',
+            size='size',
+            size_max=200,
+            color_discrete_map=party_colors,
+            symbol_map={'Speaker': 'square', 'Party': 'circle'},
+            opacity=0.60,
+            width=300,
+            height=320
+        )
         
-        # Adjust layout to prevent legend overlap
-        plt.tight_layout()
-        
+        max_abs_val = max(
+            abs(plot_data['LDA1']).max(),
+            abs(plot_data['LDA2']).max()
+        )
+        # Add a small buffer (e.g., 10%)
+        max_range = max_abs_val * 1.1
         # Add grid
-        plt.grid(True, alpha=0.3)
-        
-        # Add axis limits with some padding
-        x_min, x_max = X_plot[:, 0].min(), X_plot[:, 0].max()
-        y_min, y_max = X_plot[:, 1].min(), X_plot[:, 1].max()
-        x_padding = (x_max - x_min) * 0.1
-        y_padding = (y_max - y_min) * 0.1
-        plt.xlim(x_min - x_padding, x_max + x_padding)
-        plt.ylim(y_min - y_padding, y_max + y_padding)
+        fig.update_xaxes(showticklabels=False, showgrid=True, gridwidth=1, gridcolor='LightGray')
+        fig.update_yaxes(showticklabels=False, showgrid=True, gridwidth=1, gridcolor='LightGray')
+        # Update layout
+        fig.update_layout(
+            xaxis_range=[-max_range, max_range],
+            yaxis_range=[-max_range, max_range],
+            margin=dict(l=20, r=20, t=20, b=20),
+            font_family="Libertinus Sans",
+            plot_bgcolor='white',
+            #showlegend=False
+            legend=dict(
+                orientation="h",  # horizontal legend
+                yanchor="top",
+                y=-0.15,
+                xanchor="left",
+                x=0
+            )
+        )
         
         # Save if path provided
         if save_path:
-            plt.savefig(save_path, bbox_inches='tight', dpi=300)
-            
-        return plt.gcf(), plt.gca()
+            fig.write_html(f"{save_path}.html")
+            fig.write_image(f"{save_path}.png", scale=4)
+        
+        return fig
 
 
+
+country='UK'
+parties = [
+    'Conservative',
+    'Labour',
+    'Liberal Democrat',
+    'Scottish National Party',
+    #'Democratic Unionist Party',
+    #'Green Party',
+    #'Plaid Cymru',
+    #'Ulster Unionist Party',
+    #'Social Democratic & Labour Party'
+]
+party_colors = {
+    'Conservative': '#0194E1',
+    'Labour': '#DC241F',            # Labour Red
+    'Liberal Democrat': '#FAA61A',   # Lib Dem Gold/Orange
+    'Scottish National Party': '#EEE95D', # SNP Yellow
+    'Democratic Unionist Party': '#D46A4C', # DUP Orange-Red
+    'Green Party': '#6AB023',        # Green
+    'Plaid Cymru': '#008142',       # Plaid Green
+    'Ulster Unionist Party': '#9999FF', # UUP Blue
+    'Social Democratic & Labour Party': '#99FF66' # SDLP Green
+}
+
+df_filtered = df[
+    (df['country'] == 'UK') & 
+    (df['party'].isin(parties))
+]
+df_filtered = df_filtered.sort_values('party')
 # Initialize the analyzer
-analyzer = PoliticalSpeechAnalyzer(df[df['country']=='UK'])
+analyzer = PoliticalSpeechAnalyzer(df_filtered)
 
 # Get dataset statistics
 analyzer.print_dataset_statistics()
 
 #analyzer.prepare_embeddings_for_lda(layers=layer)
-for layer in tqdm([4,8,12,15]):
+for layer in tqdm([0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30]):
     # Perform LDA on a single layer
-    lda_model, X_lda = analyzer.perform_lda(n_components=2, layers=layer, min_speeches_per_party=20)
+    lda_model, X_lda = analyzer.perform_lda(
+        n_components=2, 
+        layers=layer, 
+        min_speeches_per_party=1,
+        random_seed=42
+    )
     # Plot the results
-    fig, ax = analyzer.plot_lda_results_2d(X_lda, save_path=f'layer_{layer}_lda_2d_visualization.png')
+    fig = analyzer.plot_lda_results_2d(
+        X_lda, 
+        party_colors=party_colors,
+        save_path=f"img/{country}_{MODEL_NAME.split('/')[-1]}_layer_{layer}_lda_2d"
+    )
 
 
 
-
-plt.show()
-
-
-
-# Perform LDA on multiple specific layers
-lda_model, X_lda = analyzer.perform_lda(n_components=2, layers=[0, 5, 10])
-
-# Analyze performance across different layer selections
-layer_analysis = analyzer.analyze_layer_selection()
-for selection, var_ratio in layer_analysis.items():
-    print(f"{selection}: {var_ratio}")
-
-
-# Plot the results
-analyzer.plot_lda_results(X_lda, save_path='lda_visualization.png')
-
-# Analyze layer contributions
-layer_contributions = analyzer.analyze_layer_contributions(lda_model)
